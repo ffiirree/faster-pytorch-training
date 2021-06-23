@@ -5,12 +5,10 @@ import torch
 import torchvision
 import torch.optim as optim
 import torch.nn as nn
-import torchvision.transforms as transforms
+import torchvision.transforms as T
 from utils import make_logger
+from torchvision.datasets import CIFAR10
 from torch.utils.data import DataLoader
-
-mean = [0.4913997551666284, 0.48215855929893703, 0.4465309133731618]
-std = [0.24703225141799082, 0.24348516474564, 0.26158783926049628]
 
 def train(train_loader, model, criterion, optimizer, epoch, args):
     model.train()
@@ -28,11 +26,9 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         scaler.step(optimizer)
         scaler.update()
 
-        train_loss += loss.item()
+        train_loss += loss.item() * images.shape[0]
 
-        if ((i + 1) % 90 == 0):
-            logger.info(f'Train Epoch # {epoch} [{i:>5}/{len(train_loader)}] \tlr: {optimizer.param_groups[0]["lr"]} \tloss: {train_loss / 90:>7.6f}')
-            train_loss = 0
+    logger.info(f'Train Epoch # {epoch} [{i:>5}/{len(train_loader)}] \tloss: {train_loss / len(train_loader.dataset):>7.6f}')
 
 
 def test(test_loader, model, epoch, args):
@@ -52,7 +48,8 @@ def test(test_loader, model, epoch, args):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dp',                default=False, action=argparse.BooleanOptionalAction)
+    parser.add_argument('--cudnn_benchmark',    default=False, action=argparse.BooleanOptionalAction)
+    parser.add_argument('--dp',                 default=False, action=argparse.BooleanOptionalAction)
     parser.add_argument('--amp',                default=False, action=argparse.BooleanOptionalAction)
     parser.add_argument('-j', '--workers',      type=int,   default=8)
     parser.add_argument('--epochs',             type=int,   default=10)
@@ -70,51 +67,32 @@ if __name__ == '__main__':
     logger = make_logger('cifar_10', 'logs')
 
     logger.info(args)
+
+    if args.cudnn_benchmark:
+        torch.backends.cudnn.benchmark = True
     
     train_loader = DataLoader(
-        torchvision.datasets.CIFAR10(
-            train=True,
-            download=False,
-            root='./data',
-            transform=transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize(mean, std),
-            ])
-        ),
+        CIFAR10('./data', True,  T.ToTensor(), download=True),
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.workers,
         pin_memory=True
     )
 
-    logger.info(f'Transform:\n{train_loader.dataset.transform}')
-
     test_loader = DataLoader(
-        torchvision.datasets.CIFAR10(
-            train=False,
-            download=False,
-            root='./data',
-            transform=transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize(mean, std)
-            ])
-        ),
+        CIFAR10('./data', False, T.ToTensor()),
         batch_size=args.batch_size,
         shuffle=False,
         num_workers=args.workers,
         pin_memory=True
     )
 
-    net = ThinNet(in_channels=3, filters=[32, 64, 128], n_blocks=[2, 2, 2], n_layers=[1, 1, 1], bn=True)
+    net = ThinNet(in_channels=3, filters=[32, 64, 128], n_blocks=[2, 2, 2], n_layers=[1, 1, 1])
     net.to(device)
     if args.dp:
         net = torch.nn.DataParallel(net)
         logger.info(f'use gpus: {net.device_ids}')
 
-    logger.info(f'Model: \n{net}')
-    params_num = sum(p.numel() for p in net.parameters())
-    logger.info(f'Params: {params_num} ({(params_num * 4) / (1024 * 1024):>7.4f}MB)')
-        
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum)
     criterion = nn.CrossEntropyLoss()
 

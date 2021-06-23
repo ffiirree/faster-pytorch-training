@@ -5,14 +5,12 @@ import torch
 import torchvision
 import torch.optim as optim
 import torch.nn as nn
-import torchvision.transforms as transforms
+import torchvision.transforms as T
 import torch.distributed as dist
 from utils import make_logger
+from torchvision.datasets import CIFAR10
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-
-mean = [0.4913997551666284, 0.48215855929893703, 0.4465309133731618]
-std = [0.24703225141799082, 0.24348516474564, 0.26158783926049628]
 
 def train(train_loader, model, criterion, optimizer, epoch, args):
     model.train()
@@ -22,7 +20,6 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         images, labels = images.cuda(non_blocking=True), labels.cuda(non_blocking=True)
 
         optimizer.zero_grad(set_to_none=True)
-
         with torch.cuda.amp.autocast(enabled=args.amp):
             output = model(images)
             loss = criterion(output, labels)
@@ -31,11 +28,9 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         scaler.step(optimizer)
         scaler.update()
 
-        train_loss += loss.item()
+        train_loss += loss.item() * images.shape[0]
 
-        if ((i + 1) % 90 == 0):
-            logger.info(f'Train Epoch # {epoch}@{args.local_rank} [{i:>5}/{len(train_loader)}] \tlr: {optimizer.param_groups[0]["lr"]} \tloss: {train_loss / 90:>7.6f}')
-            train_loss = 0
+    logger.info(f'Train Epoch # {epoch}@{args.local_rank} [{i:>5}/{len(train_loader)}] \tloss: {train_loss / len(train_loader.dataset):>7.6f}')
 
 
 def test(test_loader, model, epoch, args):
@@ -51,17 +46,18 @@ def test(test_loader, model, epoch, args):
 
             correct += (predicted == labels).sum()
 
-        dist.reduce(correct, 0)
+        dist.all_reduce(correct)
         if args.local_rank == 0:
             logger.info(f'\tTest Epoch #{epoch:>2}: {correct}/{len(test_loader.dataset)} ({100. * correct.item() / len(test_loader.dataset):>3.2f}%)')
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--cudnn_benchmark',    default=False, action=argparse.BooleanOptionalAction)
     parser.add_argument('--amp',                default=False, action=argparse.BooleanOptionalAction)
     parser.add_argument('--local_rank',         type=int, default=0)
     parser.add_argument('-j', '--workers',      type=int,   default=None)
-    parser.add_argument('--epochs',             type=int,   default=50)
+    parser.add_argument('--epochs',             type=int,   default=10)
     parser.add_argument('-b', '--batch_size',   type=int,   default=256)
     parser.add_argument('--lr',                 type=float, default=0.001)
     parser.add_argument('--momentum',           type=float, default=0.9)
@@ -74,23 +70,19 @@ if __name__ == '__main__':
     args = parse_args()
     logger = make_logger('cifar_10', 'logs')
 
-    torch.backends.cudnn.benchmark = True
+    if args.cudnn_benchmark:
+        torch.backends.cudnn.benchmark = True
     torch.cuda.set_device(args.local_rank)
     torch.distributed.init_process_group('nccl')
     device = torch.device(f'cuda:{args.local_rank}')
 
     logger.info(args)
-
-    train_dataset = torchvision.datasets.CIFAR10(
-            train=True,
-            download=False,
-            root='./data',
-            transform=transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize(mean, std)
-            ])
-        )
     
+    if args.local_rank == 0:
+        CIFAR10('./data', True, download=True)
+    dist.barrier()
+
+    train_dataset = CIFAR10('./data', True, T.ToTensor())
     train_sampler = DistributedSampler(train_dataset, shuffle=True)
 
     train_loader = DataLoader(
@@ -101,20 +93,8 @@ if __name__ == '__main__':
         pin_memory=True,
         sampler=train_sampler
     )
-
-    if args.local_rank == 0:
-        logger.info(f'Transform:\n{train_loader.dataset.transform}')
-
-    test_dataset = torchvision.datasets.CIFAR10(
-            train=False,
-            download=False,
-            root='./data',
-            transform=transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize(mean, std)
-            ])
-        )
-
+    
+    test_dataset = CIFAR10('./data', False, T.ToTensor())
     test_sampler = DistributedSampler(test_dataset, shuffle=False)
 
     test_loader = DataLoader(
@@ -126,12 +106,7 @@ if __name__ == '__main__':
         sampler=test_sampler
     )
 
-    net = ThinNet(in_channels=3, filters=[32, 64, 128], n_blocks=[2, 2, 2], n_layers=[1, 1, 1], bn=True)
-    if args.local_rank == 0:
-        logger.info(f'Model: \n{net}')
-        params_num = sum(p.numel() for p in net.parameters())
-        logger.info(f'Params: {params_num} ({(params_num * 4) / (1024 * 1024):>7.4f}MB)')
-    
+    net = ThinNet(in_channels=3, filters=[32, 64, 128], n_blocks=[2, 2, 2], n_layers=[1, 1, 1])
     # net.load_state_dict(torch.load(f'{args.output_dir}/cifar10.pt'))
     net.to(device)
     net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net)
@@ -149,7 +124,7 @@ if __name__ == '__main__':
         test(test_loader, net, epoch, args)
     benchmark.elapsed()
 
-    if args.local_rank == 0:
-        model_name = f'{args.output_dir}/cifar10.pt'
-        torch.save(net.module.state_dict(), model_name)
-        logger.info(f'Saved: {model_name}!')
+    # if args.local_rank == 0:
+    #     model_name = f'{args.output_dir}/cifar10.pt'
+    #     torch.save(net.module.state_dict(), model_name)
+    #     logger.info(f'Saved: {model_name}!')

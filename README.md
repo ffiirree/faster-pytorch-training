@@ -3,26 +3,31 @@
 Single-machine multi-GPU 
 
 ## Run Time
-|| vanilla | DP | DP+AMP | DDP | DDP+AMP |
-|:--:|:--:|:--:|:--:| :--: |:--:|
-| 10 epcohs/s| 82.95 | 78.88 | 77.45 | 44.00 | 37.96 |
+> Baseline : 82.826s
 
-- `vanilla`: 1 GPU
-- `DP`: 2 GPUs with `torch.nn.DataParallel`
-- `DP + AMP`: 2 GPUs with `torch.nn.DataParallel` and `torch.cuda.amp`
-- `DDP`: 2 GPUs with `torch.nn.parallel.DistributedDataParallel`
-- `DDP + AMP`: 2 GPUs with `torch.nn.parallel.DistributedDataParallel` and `torch.cuda.amp`
+|    |        | +cudnn_benchmark | +AMP   | +cudnn_benchmark +AMP |
+|:--:|  :--:  |:--:              |:--:    | :--:   |
+| DP | 76.776 | 65.850           | 75.954 | 67.642 |
+|DDP | 53.176 | 43.683           | 49.138 | 38.339 |
+
+
+- `DP`: `torch.nn.DataParallel`
+- `AMP`: `torch.cuda.amp`
+- `DDP`: `torch.nn.parallel.DistributedDataParallel`
+- `cudnn_benchmark`: `torch.backends.cudnn.benchmark = True`
 
 ## Usage
 ```bash
 # vanilla
 python baseline.py --workers 8
-# DP
-python baseline.py --workers 8 --dp
 # DP + AMP
-python baseline.py --workers 8 --dp  --amp
+python baseline.py --workers 8 --dp --amp
+# DP + cudnn_benchmark
+python baseline.py --workers 8 --dp  --cudnn_benchmark
 # DDP
 python -m torch.distributed.launch --nproc_per_node=2 faster.py --workers 8
 # DDP + AMP
 python -m torch.distributed.launch --nproc_per_node=2 faster.py --workers 8 --amp
+# DDP + cudnn_benchmark
+python -m torch.distributed.launch --nproc_per_node=2 faster.py --workers 8 --cudnn_benchmark
 ```

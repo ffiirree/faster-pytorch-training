@@ -16,6 +16,34 @@ Single-machine multi-GPU
 - `DDP`: `torch.nn.parallel.DistributedDataParallel`
 - `cudnn_benchmark`: `torch.backends.cudnn.benchmark = True`
 
+## ENV
+```json
+{
+    "Python":"3.9.5",
+    "torch":"1.8.1",
+    "torchvision":"0.9.1",
+    "CUDA":"11.1",
+    "cuDNN":8005,
+    "GPU":{
+        "#0":{
+            "name":"Quadro RTX 6000",
+            "memory":"23.65GB"
+        },
+        "#1":{
+            "name":"Quadro RTX 6000",
+            "memory":"23.65GB"
+        }
+    },
+    "Platform":{
+        "system":"Linux",
+        "node":"4029GP-TRT",
+        "version":"#83~18.04.1-Ubuntu SMP Tue May 11 16:01:00 UTC 2021",
+        "machine":"x86_64",
+        "processor":"x86_64"
+    }
+}
+```
+
 ## Usage
 ```bash
 # vanilla

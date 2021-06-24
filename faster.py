@@ -1,5 +1,3 @@
-from utils.utils import Benchmark
-from models import *
 import argparse
 import torch
 import torchvision
@@ -7,7 +5,8 @@ import torch.optim as optim
 import torch.nn as nn
 import torchvision.transforms as T
 import torch.distributed as dist
-from utils import make_logger
+from models import *
+from utils import *
 from torchvision.datasets import CIFAR10
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
@@ -80,6 +79,7 @@ if __name__ == '__main__':
     
     if args.local_rank == 0:
         CIFAR10('./data', True, download=True)
+        CIFAR10('./data', False, download=True)
     dist.barrier()
 
     train_dataset = CIFAR10('./data', True, T.ToTensor())

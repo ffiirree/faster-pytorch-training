@@ -1,12 +1,11 @@
-from utils.utils import Benchmark
-from models import *
 import argparse
 import torch
 import torchvision
 import torch.optim as optim
 import torch.nn as nn
 import torchvision.transforms as T
-from utils import make_logger
+from utils import *
+from models import *
 from torchvision.datasets import CIFAR10
 from torch.utils.data import DataLoader
 

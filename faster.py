@@ -27,9 +27,9 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         scaler.step(optimizer)
         scaler.update()
 
-        train_loss += loss.item() * images.shape[0]
+        train_loss += loss * images.shape[0]
 
-    logger.info(f'Train Epoch # {epoch}@{args.local_rank} [{i:>5}/{len(train_loader)}] \tloss: {train_loss / len(train_loader.dataset):>7.6f}')
+    logger.info(f'Train Epoch # {epoch}@{args.local_rank} [{i:>5}/{len(train_loader)}] \tloss: {train_loss.item() / len(train_loader.dataset):>7.6f}')
 
 
 def test(test_loader, model, epoch, args):
@@ -55,11 +55,12 @@ def parse_args():
     parser.add_argument('--cudnn_benchmark',    default=False, action=argparse.BooleanOptionalAction)
     parser.add_argument('--amp',                default=False, action=argparse.BooleanOptionalAction)
     parser.add_argument('--local_rank',         type=int, default=0)
-    parser.add_argument('-j', '--workers',      type=int,   default=None)
-    parser.add_argument('--epochs',             type=int,   default=10)
-    parser.add_argument('-b', '--batch_size',   type=int,   default=256)
+    parser.add_argument('-j', '--workers',      type=int,   default=8)
+    parser.add_argument('--epochs',             type=int,   default=5)
+    parser.add_argument('-b', '--batch_size',   type=int,   default=512)
     parser.add_argument('--lr',                 type=float, default=0.001)
     parser.add_argument('--momentum',           type=float, default=0.9)
+    parser.add_argument('--download',           default=False, action=argparse.BooleanOptionalAction)
     parser.add_argument('--output-dir',         type=str,   default='logs')
     return parser.parse_args()
 
@@ -77,7 +78,7 @@ if __name__ == '__main__':
 
     logger.info(args)
     
-    if args.local_rank == 0:
+    if args.local_rank == 0 and args.download:
         CIFAR10('./data', True, download=True)
         CIFAR10('./data', False, download=True)
     dist.barrier()
@@ -115,7 +116,7 @@ if __name__ == '__main__':
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum)
     criterion = nn.CrossEntropyLoss()
 
-    scaler = torch.cuda.amp.GradScaler()
+    scaler = torch.cuda.amp.GradScaler(enabled=args.amp)
 
     benchmark = Benchmark(args.local_rank == 0, logger=logger)
     for epoch in range(args.epochs):

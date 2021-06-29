@@ -7,25 +7,19 @@ import platform
 __all__ = ['Benchmark', 'env_info']
 
 class Benchmark:
-    def __init__(self, enabled: bool = True, logger = None) -> None:
-
-        self._enabled = enabled
+    def __init__(self) -> None:
         self._start = None
-        self._logger = logger
-
         self.start()
 
     def start(self):
-        if self._enabled:
-            self._start = time.time()
+        self._start = time.time()
 
     def elapsed(self):
-        if self._enabled:
-            msg = f'Elapsed: {time.time() - self._start:>.3f}s'
-            if self._logger:
-                self._logger.info(msg)
-            else:
-                print(msg)
+        _now = time.time()
+        _elapsed = _now - self._start
+        self._start = _now
+
+        return _elapsed
 
 def env_info(json: bool = False):
     kvs = {

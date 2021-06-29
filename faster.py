@@ -52,15 +52,15 @@ def test(test_loader, model, epoch, args):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cudnn_benchmark',    default=False, action=argparse.BooleanOptionalAction)
-    parser.add_argument('--amp',                default=False, action=argparse.BooleanOptionalAction)
+    parser.add_argument('--cudnn_benchmark',    action='store_true')
+    parser.add_argument('--amp',                action='store_true')
     parser.add_argument('--local_rank',         type=int, default=0)
     parser.add_argument('-j', '--workers',      type=int,   default=8)
     parser.add_argument('--epochs',             type=int,   default=5)
     parser.add_argument('-b', '--batch_size',   type=int,   default=512)
     parser.add_argument('--lr',                 type=float, default=0.001)
     parser.add_argument('--momentum',           type=float, default=0.9)
-    parser.add_argument('--download',           default=False, action=argparse.BooleanOptionalAction)
+    parser.add_argument('--download',           action='store_true')
     parser.add_argument('--output-dir',         type=str,   default='logs')
     return parser.parse_args()
 
@@ -118,12 +118,12 @@ if __name__ == '__main__':
 
     scaler = torch.cuda.amp.GradScaler(enabled=args.amp)
 
-    benchmark = Benchmark(args.local_rank == 0, logger=logger)
+    benchmark = Benchmark()
     for epoch in range(args.epochs):
         train_sampler.set_epoch(epoch)
         train(train_loader, net, criterion, optimizer, epoch, args)
         test(test_loader, net, epoch, args)
-    benchmark.elapsed()
+    logger.info(f'{benchmark.elapsed():>.3f}')
 
     # if args.local_rank == 0:
     #     model_name = f'{args.output_dir}/cifar10.pt'

@@ -1,4 +1,4 @@
-# Faster
+# Faster Training
 
 Single-machine multi-GPU 
 
@@ -94,3 +94,14 @@ Batch size: 256/2, workers: 8 x 2
 
 # Or run the commands in the script directly.
 ```
+
+## Downscale ImageNet Dataset (for validating ideas quickly)
+The average resolution of ImageNet images is `469`$\times$`387`, but they are usually cropped to `256`$\times$`256` or `224`$\times$`224` in your image preprocessing step. *So we could speed up reading by downscaling the image size.*
+Especially, the entire dataset can be loaded into memory.
+```bash
+# N: the max size of smaller edge
+python resize_imagenet.py --src </path/to/imagenet> --dst </path/to/imagenet/resized> --max-size N
+```
+
+### Training with smaller size
+As reported in [Fixing the train-test resolution discrepancy](https://arxiv.org/abs/1906.06423), you can use smaller image size when training models.

@@ -96,7 +96,7 @@ Batch size: 256/2, workers: 8 x 2
 ```
 
 ## Downscale ImageNet Dataset (for validating ideas quickly)
-The average resolution of ImageNet images is `469`$\times$`387`, but they are usually cropped to `256`$\times$`256` or `224`$\times$`224` in your image preprocessing step. *So we could speed up reading by downscaling the image size.*
+The average resolution of ImageNet images is `469x387`, but they are usually cropped to `256x256` or `224x224` in your image preprocessing step. *So we could speed up reading by downscaling the image size.*
 Especially, the entire dataset can be loaded into memory.
 ```bash
 # N: the max size of smaller edge
